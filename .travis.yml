@@ -1,24 +1,67 @@
 language: c
+sudo: required
+dist: trusty
 
-compiler: gcc
-
-sudo: false
+env:
+  matrix:
+    # - COMPILER=clang
+    # - COMPILER=clang-3.7
+    - COMPILER=gcc-6 BUILD_TYPE=asan
+    - COMPILER=gcc-6 BUILD_TYPE=ubsan
+    - BUILD_TYPE=coverage
 
 before_install:
-  - pip install --user codecov
+  - sudo apt-add-repository -y ppa:ubuntu-toolchain-r/test
+  - sudo apt-get update -qq
+  - sudo apt-get install -qq build-essential cmake gdb
+  - |-
+    case "${COMPILER}" in
+      "clang")
+        export CC=clang
+        ;;
+      "clang-"*)
+        sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys AF4F7421
+        sudo apt-add-repository -y "deb http://llvm.org/apt/trusty/ llvm-toolchain-trusty-${COMPILER#*-} main"
+        sudo apt-get install -qq "${COMPILER}"
+        export CC=clang-${COMPILER#*-}
+        ;;
+      "gcc-"*)
+        sudo apt-get install -qq gcc-${COMPILER#*-}
+        export CC=gcc-${COMPILER#*-}
+        ;;
+    esac
+  - ${CC} --version
+  - if [ "${BUILD_TYPE}" = "coverage" ]; then pip install --user codecov; fi
 
 before_script:
   - mkdir build
   - cd build
-  - cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_COVERAGE=ON ..
+  - |-
+    case "${BUILD_TYPE}" in
+      "coverage")
+        cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_COVERAGE=ON ..
+        ;;
+      "asan")
+        cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_SANITIZER=address -DCMAKE_C_FLAGS="-fuse-ld=gold" ..
+        ;;
+      "ubsan")
+        cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_SANITIZER=undefined -DCMAKE_C_FLAGS="-fuse-ld=gold" ..
+        ;;
+      *)
+        cmake ..
+        ;;
+    esac
 
-script: cmake --build . && ctest -V -C Debug
+script: make VERBOSE=1 && make test
 
 after_success:
-  - gcov CMakeFiles/brieflz.dir/brieflz.c.gcno -o CMakeFiles/brieflz.dir
-  - gcov CMakeFiles/brieflz.dir/depack.c.gcno -o CMakeFiles/brieflz.dir
-  - gcov CMakeFiles/brieflz.dir/depacks.c.gcno -o CMakeFiles/brieflz.dir
-  - codecov -X gcov
+  - |-
+    if [ "${BUILD_TYPE}" = "coverage" ]; then
+      gcov CMakeFiles/brieflz.dir/brieflz.c.gcno -o CMakeFiles/brieflz.dir
+      gcov CMakeFiles/brieflz.dir/depack.c.gcno -o CMakeFiles/brieflz.dir
+      gcov CMakeFiles/brieflz.dir/depacks.c.gcno -o CMakeFiles/brieflz.dir
+      codecov -X gcov
+    fi
 
 notifications:
   email: false
