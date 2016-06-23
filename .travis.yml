@@ -5,13 +5,12 @@ dist: trusty
 env:
   matrix:
     # - COMPILER=clang
-    # - COMPILER=clang-3.7
+    - COMPILER=clang-3.8
     - COMPILER=gcc-6 BUILD_TYPE=asan
     - COMPILER=gcc-6 BUILD_TYPE=ubsan
     - BUILD_TYPE=coverage
 
 before_install:
-  - sudo apt-add-repository -y ppa:ubuntu-toolchain-r/test
   - sudo apt-get update -qq
   - sudo apt-get install -qq build-essential cmake gdb
   - |-
@@ -22,10 +21,13 @@ before_install:
       "clang-"*)
         sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys AF4F7421
         sudo apt-add-repository -y "deb http://llvm.org/apt/trusty/ llvm-toolchain-trusty-${COMPILER#*-} main"
+        sudo apt-get update -qq
         sudo apt-get install -qq "${COMPILER}"
         export CC=clang-${COMPILER#*-}
         ;;
       "gcc-"*)
+        sudo apt-add-repository -y ppa:ubuntu-toolchain-r/test
+        sudo apt-get update -qq
         sudo apt-get install -qq gcc-${COMPILER#*-}
         export CC=gcc-${COMPILER#*-}
         ;;
